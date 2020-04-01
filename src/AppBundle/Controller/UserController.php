@@ -8,10 +8,11 @@ use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Bundle\FrameworkBundle\Controller\Controller;
 use Symfony\Component\Form\Extension\Core\Type\TextType;
 use Symfony\Component\Form\Extension\Core\Type\EmailType;
-use Symfony\Component\Form\Extension\Core\Type\PasswordType;
 use Symfony\Component\Form\Extension\Core\Type\ChoiceType;
 use Symfony\Component\Form\Extension\Core\Type\CheckboxType;
 use Gregwar\CaptchaBundle\Type\CaptchaType;
+use AppBundle\Entity\Subscription;
+use Doctrine\ORM\EntityManagerInterface;
 
 class UserController extends Controller
 {
@@ -22,12 +23,11 @@ class UserController extends Controller
   {
     $form = $this->createFormBuilder()
       ->add('email', EmailType::class, array('label' => 'Email address', 'attr' => array('class' => 'form-control', 'style' => 'margin-bottom:15px', 'placeholder' => 'Input email address')))
-      ->add('firstName', TextType::class, array('label' => 'First name', 'attr' => array('class' => 'form-control', 'style' => 'margin-bottom:15px', 'placeholder' => 'Input first name')))
-      ->add('lastName', TextType::class, array('label' => 'Last name', 'attr' => array('class' => 'form-control', 'style' => 'margin-bottom:15px', 'placeholder' => 'Input last name')))
-      // ->add('password', PasswordType::class, array('label' => 'Password', 'required' => false, 'attr' => array('class' => 'form-control', 'style' => 'margin-bottom:15px', 'placeholder' => 'Input password')))
+      ->add('first_name', TextType::class, array('label' => 'First name', 'attr' => array('class' => 'form-control', 'style' => 'margin-bottom:15px', 'placeholder' => 'Input first name')))
+      ->add('last_name', TextType::class, array('label' => 'Last name', 'attr' => array('class' => 'form-control', 'style' => 'margin-bottom:15px', 'placeholder' => 'Input last name')))
       ->add('zip', TextType::class, array('label' => 'Zip', 'attr' => array('class' => 'form-control', 'style' => 'margin-bottom:15px', 'placeholder' => 'Input Zip')))
-      ->add('organizationName', TextType::class, array('label' => 'Organization name', 'attr' => array('class' => 'form-control', 'style' => 'margin-bottom:15px', 'placeholder' => 'Input organization name')))
-      ->add('organizationAddress', TextType::class, array('label' => 'Organization address', 'attr' => array('class' => 'form-control', 'style' => 'margin-bottom:15px', 'placeholder' => 'Input organization address')))
+      ->add('organization_name', TextType::class, array('label' => 'Organization name', 'attr' => array('class' => 'form-control', 'style' => 'margin-bottom:15px', 'placeholder' => 'Input organization name')))
+      ->add('organization_address', TextType::class, array('label' => 'Organization address', 'attr' => array('class' => 'form-control', 'style' => 'margin-bottom:15px', 'placeholder' => 'Input organization address')))
       ->add(
         'country',
         ChoiceType::class,
@@ -279,6 +279,19 @@ class UserController extends Controller
       )
       ->add('city', TextType::class, array('label' => 'City', 'attr' => array('class' => 'form-control', 'style' => 'margin-bottom:15px', 'placeholder' => 'Input city')))
       ->add(
+        'language',
+        ChoiceType::class,
+        [
+          'choices'  => [
+            'English' => 'English',
+            'Spanish' => 'Spanish',
+            'French' => 'French',
+          ],
+          'label' => 'Preferred language for email notification',
+          'attr' => array('class' => 'form-control', 'style' => 'margin-bottom:15px')
+        ]
+      )
+      ->add(
         'proposal',
         ChoiceType::class,
         [
@@ -308,14 +321,16 @@ class UserController extends Controller
         'required' => false,
         'attr' => array('class' => 'form-check-input')
       ])
-      // ->add('captcha', CaptchaType::class)
+      ->add('captcha', CaptchaType::class)
       ->getForm();
 
     if ($request->isMethod('POST')) {
       $form->submit($request->request->get($form->getName()));
-
+      $formData = $form->getData();
+      $fullname = $formData['first_name'] . " " . $formData['last_name'];
       if ($form->isSubmitted() && $form->isValid()) {
-        $this->registrationSuccess($mailer);
+        $this->newUser($formData);
+        $this->registrationSuccess($mailer, $formData['email'], $fullname);
         return $this->render('registration/success.html.twig');
       }
     }
@@ -323,18 +338,43 @@ class UserController extends Controller
     return $this->render('registration/index.html.twig', ['form' => $form->createView()]);
   }
 
-  public function registrationSuccess(\Swift_Mailer $mailer)
+  public function registrationSuccess(\Swift_Mailer $mailer, $email, $fullname)
   {
-    $message = (new \Swift_Message('Hello Email'))
-      ->setFrom('anhhoangng.testmail@gmail.com')
-      ->setTo('crzcoders@gmail.com')
+    $message = (new \Swift_Message('Sinapse Confirmation Email'))
+      ->setFrom('DLMS_msg@sinapseprint.com')
+      ->setTo($email)
       ->setBody(
         $this->renderView(
           'mail/reg.html.twig',
-          ['name' => 'ahihihi do ngok']
+          ['name' => $fullname]
         ),
         'text/html'
       );
     $mailer->send($message);
+  }
+
+  public function newUser($data)
+  {
+    $entityManager = $this->getDoctrine()->getManager();
+
+    $subscription = new Subscription();
+    $subscription->setEmail($data['email']);
+    $subscription->setFirstName($data['first_name']);
+    $subscription->setLastName($data['last_name']);
+    $subscription->setZip($data['zip']);
+    $subscription->setOrganizationName($data['organization_name']);
+    $subscription->setOrganizationAddress($data['organization_address']);
+    $subscription->setCountry($data['country']);
+    $subscription->setCity($data['city']);
+    $subscription->setProposal($data['proposal']);
+    $subscription->setIncreaseTeleworking($data['increase_teleworking']);
+    $subscription->setDistanceLearning($data['distance_learning']);
+    $subscription->setCoronaVirus($data['corona_virus']);
+    $subscription->setLanguage($data['language']);
+    $entityManager->persist($subscription);
+
+    // actually executes the queries (i.e. the INSERT query)
+    $entityManager->flush();
+    return;
   }
 }
