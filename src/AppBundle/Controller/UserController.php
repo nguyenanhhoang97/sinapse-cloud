@@ -13,6 +13,7 @@ use Symfony\Component\Form\Extension\Core\Type\CheckboxType;
 use Gregwar\CaptchaBundle\Type\CaptchaType;
 use AppBundle\Entity\Subscription;
 use Doctrine\ORM\EntityManagerInterface;
+use GuzzleHttp\Client;
 
 class UserController extends Controller
 {
@@ -329,8 +330,8 @@ class UserController extends Controller
       $formData = $form->getData();
       $fullname = $formData['first_name'] . " " . $formData['last_name'];
       if ($form->isSubmitted() && $form->isValid()) {
-        $this->newUser($formData);
-        $this->registrationSuccess($mailer, $formData['email'], $fullname);
+        $result = $this->newSub($formData);
+        $this->registrationSuccess($mailer, $formData['email'], $fullname, $result);
         return $this->render('registration/success.html.twig');
       }
     }
@@ -338,7 +339,28 @@ class UserController extends Controller
     return $this->render('registration/index.html.twig', ['form' => $form->createView()]);
   }
 
-  public function registrationSuccess(\Swift_Mailer $mailer, $email, $fullname)
+  /**
+   * @Route("/verify", name="verify")
+   */
+  public function verify(Request $request)
+  {
+    $id = (int) $request->query->get('a_c_c_verify');
+    $message = 'Cannot verify your account';
+    if ($id > 0) {
+      $found = $this->getSubById($id);
+      if ($found != null) {
+        $token = $this->getAccessToken();
+        $result = $this->createDlmsAccount($found, $token);
+        if ($result == 201) {
+          $this->updateSubById($id);
+          $message = 'Your account has been successfully verified';
+        }
+      }
+    }
+    return $this->render('registration/verify.html.twig', ['message' => $message]);
+  }
+
+  public function registrationSuccess(\Swift_Mailer $mailer, $email, $fullname, $id)
   {
     $message = (new \Swift_Message('Sinapse Confirmation Email'))
       ->setFrom('DLMS_msg@sinapseprint.com')
@@ -346,14 +368,14 @@ class UserController extends Controller
       ->setBody(
         $this->renderView(
           'mail/reg.html.twig',
-          ['name' => $fullname]
+          ['name' => $fullname, 'id' => $id]
         ),
         'text/html'
       );
     $mailer->send($message);
   }
 
-  public function newUser($data)
+  public function newSub($data)
   {
     $entityManager = $this->getDoctrine()->getManager();
 
@@ -375,6 +397,81 @@ class UserController extends Controller
 
     // actually executes the queries (i.e. the INSERT query)
     $entityManager->flush();
+    return $subscription->getId();
+  }
+
+  public function getSubById($id)
+  {
+    $sub = $this->getDoctrine()
+      ->getRepository(Subscription::class)
+      ->find($id);
+
+    if (!$id) {
+      throw $this->createNotFoundException(
+        'No subscription found for id ' . $id
+      );
+    }
+    return $sub;
+  }
+
+  public function updateSubById($id)
+  {
+    $entityManager = $this->getDoctrine()->getManager();
+    $sub = $entityManager->getRepository(Subscription::class)->find($id);
+
+    if (!$id) {
+      throw $this->createNotFoundException(
+        'No subscription found for id ' . $id
+      );
+    }
+
+    $sub->setVerifiedFlag(true);
+    $entityManager->flush();
     return;
+  }
+
+  public function getAccessToken()
+  {
+    $client = new Client();
+    $response = $client->post('http://dlms.sinapseprint.com/api/account/author.php', [
+      'form_params' => [
+        'typerequest' => 'gettoken',
+        'username' => 'learning',
+        'password' => 'M47KMECO',
+      ]
+    ])->getBody()->getContents();
+    $decodedRes = json_decode($response);
+    $statusCode = $decodedRes->code;
+    if ($statusCode == 200) {
+      $token = $decodedRes->token;
+      return $token;
+    } else {
+      return null;
+    }
+  }
+
+  public function createDlmsAccount($data, $token)
+  {
+    $client = new Client();
+    $response = $client->post('http://dlms.sinapseprint.com/api/account/user.php', [
+      'form_params' => [
+        'typerequest' => 'newuser',
+        'token' => $token,
+        'code' => '12003LEC001',
+        'email' => $data->getEmail(),
+        'firstname' => $data->getFirstName(),
+        'lastname' => $data->getLastName(),
+        'role' => 'user',
+        'password' => '123@SPS',
+        'company' => $data->getOrganizationName(),
+        'language' => $data->getLanguage(),
+        'city' => $data->getCity(),
+        'zip' => $data->getZip(),
+        'country' => $data->getCountry(),
+      ]
+    ])->getBody()->getContents();
+    $decodedRes = json_decode($response);
+    $statusCode = $decodedRes->code;
+    return $statusCode;
   }
 }
