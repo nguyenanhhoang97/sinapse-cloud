@@ -331,6 +331,7 @@ class UserController extends Controller
       $fullname = $formData['first_name'] . " " . $formData['last_name'];
       if ($form->isSubmitted() && $form->isValid()) {
         $result = $this->newSub($formData);
+        var_dump($result);
         $this->registrationSuccess($mailer, $formData['email'], $fullname, $result);
         return $this->render('registration/success.html.twig');
       }
