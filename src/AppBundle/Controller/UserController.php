@@ -18,7 +18,7 @@ use GuzzleHttp\Client;
 class UserController extends Controller
 {
   /**
-   * @Route("/registration", name="registration")
+   * @Route("{_locale}/registration", name="registration",  requirements={"_locale": "en|fr|ca"})
    */
   public function registration(Request $request, \Swift_Mailer $mailer)
   {
@@ -329,9 +329,10 @@ class UserController extends Controller
       $form->submit($request->request->get($form->getName()));
       $formData = $form->getData();
       $fullname = $formData['first_name'] . " " . $formData['last_name'];
+      $emailLanguage = $formData['language'];
       if ($form->isSubmitted() && $form->isValid()) {
         $result = $this->newSub($formData);
-        // $this->registrationSuccess($mailer, $formData['email'], $fullname, $result);
+        $this->registrationSuccess($mailer, $formData['email'], $fullname, $result, $emailLanguage);
         return $this->render('registration/success.html.twig');
       }
     }
@@ -360,19 +361,46 @@ class UserController extends Controller
     return $this->render('registration/verify.html.twig', ['message' => $message]);
   }
 
-  public function registrationSuccess(\Swift_Mailer $mailer, $email, $fullname, $id)
+  public function registrationSuccess(\Swift_Mailer $mailer, $email, $fullname, $id, $emailLanguage)
   {
-    $message = (new \Swift_Message('Sinapse Confirmation Email'))
-      ->setFrom('DLMS_msg@sinapseprint.com')
-      ->setTo($email)
-      ->setBody(
-        $this->renderView(
-          'mail/reg.html.twig',
-          ['name' => $fullname, 'id' => $id]
-        ),
-        'text/html'
-      );
-    $mailer->send($message);
+    if ($emailLanguage == "French") {
+      $message = (new \Swift_Message('Sinapse Confirmation Email'))
+        ->setFrom('DLMS_msg@sinapseprint.com')
+        ->setTo($email)
+        ->setBody(
+          $this->renderView(
+            'mail/regfr.html.twig',
+            ['name' => $fullname, 'id' => $id]
+          ),
+          'text/html'
+        );
+      $mailer->send($message);
+    }
+    else if ($emailLanguage == "Spanish") {
+      $message = (new \Swift_Message('Sinapse Confirmation Email'))
+        ->setFrom('DLMS_msg@sinapseprint.com')
+        ->setTo($email)
+        ->setBody(
+          $this->renderView(
+            'mail/regca.html.twig',
+            ['name' => $fullname, 'id' => $id]
+          ),
+          'text/html'
+        );
+      $mailer->send($message);
+    } else {
+      $message = (new \Swift_Message('Sinapse Confirmation Email'))
+        ->setFrom('DLMS_msg@sinapseprint.com')
+        ->setTo($email)
+        ->setBody(
+          $this->renderView(
+            'mail/reg.html.twig',
+            ['name' => $fullname, 'id' => $id]
+          ),
+          'text/html'
+        );
+      $mailer->send($message);
+    }
   }
 
   public function newSub($data)
