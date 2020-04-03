@@ -358,7 +358,9 @@ class UserController extends Controller
         $company = $found->getOrganizationName();
         $token = $this->getAccessToken();
         $result = $this->createDlmsAccount($found, $token);
-        if ($result == 201) {
+        $statusCode = $result->code;
+        $message = $result->message;
+        if ($statusCode == 201) {
           $this->updateSubById($id);
           $noti = 'Your account has been successfully verified';
           if ($language == "French") {
@@ -398,43 +400,47 @@ class UserController extends Controller
               );
             $mailer->send($message);
           }
-        } else {
-          if ($language == "French") {
-            $message = (new \Swift_Message('Votre adresse e-mail est déjà utilisée dans Sinapse Cloud'))
-              ->setFrom('DLMS_msg@sinapseprint.com')
-              ->setTo($email)
-              ->setBody(
-                $this->renderView(
-                  'mail/errmailfr.html.twig',
-                  ['name' => $fullname, 'email' => $email, 'company' => $company]
-                ),
-                'text/html'
-              );
-            $mailer->send($message);
-          } else if ($language == "Spanish") {
-            $message = (new \Swift_Message('Your email address s already use in Sinapse Cloud'))
-              ->setFrom('DLMS_msg@sinapseprint.com')
-              ->setTo($email)
-              ->setBody(
-                $this->renderView(
-                  'mail/errmailca.html.twig',
-                  ['name' => $fullname, 'email' => $email, 'company' => $company]
-                ),
-                'text/html'
-              );
-            $mailer->send($message);
+        } else if ($statusCode == 204) {
+          if ($message == "No Available Citrix Account. Please Contact Sinapse.") {
+            $noti = $message;
           } else {
-            $message = (new \Swift_Message('Your email address is already use in Sinapse Cloud'))
-              ->setFrom('DLMS_msg@sinapseprint.com')
-              ->setTo($email)
-              ->setBody(
-                $this->renderView(
-                  'mail/errmail.html.twig',
-                  ['name' => $fullname, 'email' => $email, 'company' => $company]
-                ),
-                'text/html'
-              );
-            $mailer->send($message);
+            if ($language == "French") {
+              $message = (new \Swift_Message('Votre adresse e-mail est déjà utilisée dans Sinapse Cloud'))
+                ->setFrom('DLMS_msg@sinapseprint.com')
+                ->setTo($email)
+                ->setBody(
+                  $this->renderView(
+                    'mail/errmailfr.html.twig',
+                    ['name' => $fullname, 'email' => $email, 'company' => $company]
+                  ),
+                  'text/html'
+                );
+              $mailer->send($message);
+            } else if ($language == "Spanish") {
+              $message = (new \Swift_Message('Your email address s already use in Sinapse Cloud'))
+                ->setFrom('DLMS_msg@sinapseprint.com')
+                ->setTo($email)
+                ->setBody(
+                  $this->renderView(
+                    'mail/errmailca.html.twig',
+                    ['name' => $fullname, 'email' => $email, 'company' => $company]
+                  ),
+                  'text/html'
+                );
+              $mailer->send($message);
+            } else {
+              $message = (new \Swift_Message('Your email address is already use in Sinapse Cloud'))
+                ->setFrom('DLMS_msg@sinapseprint.com')
+                ->setTo($email)
+                ->setBody(
+                  $this->renderView(
+                    'mail/errmail.html.twig',
+                    ['name' => $fullname, 'email' => $email, 'company' => $company]
+                  ),
+                  'text/html'
+                );
+              $mailer->send($message);
+            }
           }
         }
       }
@@ -579,7 +585,9 @@ class UserController extends Controller
       ]
     ])->getBody()->getContents();
     $decodedRes = json_decode($response);
-    $statusCode = $decodedRes->code;
-    return $statusCode;
+    return $decodedRes;
+    // var_dump($decodedRes);
+    // $statusCode = $decodedRes->code;
+    // return $statusCode;
   }
 }
