@@ -343,18 +343,99 @@ class UserController extends Controller
   /**
    * @Route("/verify", name="verify")
    */
-  public function verify(Request $request)
+  public function verify(Request $request, \Swift_Mailer $mailer)
   {
     $id = (int) $request->query->get('a_c_c_verify');
     $message = 'Cannot verify your account';
     if ($id > 0) {
       $found = $this->getSubById($id);
       if ($found != null) {
+        $email = $found->getEmail();
+        $firstName = $found->getFirstName();
+        $lastName = $found->getLastName();
+        $language = $found->getLanguage();
+        $fullname = $firstName . " " . $lastName;
+        $company = $found->getOrganizationName();
         $token = $this->getAccessToken();
         $result = $this->createDlmsAccount($found, $token);
         if ($result == 201) {
           $this->updateSubById($id);
           $message = 'Your account has been successfully verified';
+          if ($language == "French") {
+            $message = (new \Swift_Message('Vous avez été enregistré avec succès dans le cloud Sinapse'))
+              ->setFrom('DLMS_msg@sinapseprint.com')
+              ->setTo($email)
+              ->setBody(
+                $this->renderView(
+                  'mail/sucmailfr.html.twig',
+                  ['name' => $fullname]
+                ),
+                'text/html'
+              );
+            $mailer->send($message);
+          } else if ($language == "Spanish") {
+            $message = (new \Swift_Message('Se ha registrado con éxito en la nube de Sinapse'))
+              ->setFrom('DLMS_msg@sinapseprint.com')
+              ->setTo($email)
+              ->setBody(
+                $this->renderView(
+                  'mail/sucmailca.html.twig',
+                  ['name' => $fullname]
+                ),
+                'text/html'
+              );
+            $mailer->send($message);
+          } else {
+            $message = (new \Swift_Message('You have been successfully registered in the Sinapse cloud'))
+              ->setFrom('DLMS_msg@sinapseprint.com')
+              ->setTo($email)
+              ->setBody(
+                $this->renderView(
+                  'mail/sucmail.html.twig',
+                  ['name' => $fullname]
+                ),
+                'text/html'
+              );
+            $mailer->send($message);
+          }
+        } else {
+          if ($language == "French") {
+            $message = (new \Swift_Message('Votre adresse e-mail est déjà utilisée dans Sinapse Cloud'))
+              ->setFrom('DLMS_msg@sinapseprint.com')
+              ->setTo($email)
+              ->setBody(
+                $this->renderView(
+                  'mail/errmailfr.html.twig',
+                  ['name' => $fullname, 'email' => $email, 'company' => $company]
+                ),
+                'text/html'
+              );
+            $mailer->send($message);
+          } else if ($language == "Spanish") {
+            $message = (new \Swift_Message('Your email address s already use in Sinapse Cloud'))
+              ->setFrom('DLMS_msg@sinapseprint.com')
+              ->setTo($email)
+              ->setBody(
+                $this->renderView(
+                  'mail/errmailca.html.twig',
+                  ['name' => $fullname, 'email' => $email, 'company' => $company]
+                ),
+                'text/html'
+              );
+            $mailer->send($message);
+          } else {
+            $message = (new \Swift_Message('Your email address is already use in Sinapse Cloud'))
+              ->setFrom('DLMS_msg@sinapseprint.com')
+              ->setTo($email)
+              ->setBody(
+                $this->renderView(
+                  'mail/errmail.html.twig',
+                  ['name' => $fullname, 'email' => $email, 'company' => $company]
+                ),
+                'text/html'
+              );
+            $mailer->send($message);
+          }
         }
       }
     }
@@ -364,7 +445,7 @@ class UserController extends Controller
   public function registrationSuccess(\Swift_Mailer $mailer, $email, $fullname, $id, $emailLanguage)
   {
     if ($emailLanguage == "French") {
-      $message = (new \Swift_Message('Sinapse Confirmation Email'))
+      $message = (new \Swift_Message('E-mail de confirmation Sinapse'))
         ->setFrom('DLMS_msg@sinapseprint.com')
         ->setTo($email)
         ->setBody(
@@ -375,8 +456,7 @@ class UserController extends Controller
           'text/html'
         );
       $mailer->send($message);
-    }
-    else if ($emailLanguage == "Spanish") {
+    } else if ($emailLanguage == "Spanish") {
       $message = (new \Swift_Message('Sinapse Confirmation Email'))
         ->setFrom('DLMS_msg@sinapseprint.com')
         ->setTo($email)
