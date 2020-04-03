@@ -346,7 +346,7 @@ class UserController extends Controller
   public function verify(Request $request, \Swift_Mailer $mailer)
   {
     $id = (int) $request->query->get('a_c_c_verify');
-    $message = 'Cannot verify your account';
+    $noti = 'Cannot verify your account';
     if ($id > 0) {
       $found = $this->getSubById($id);
       if ($found != null) {
@@ -360,7 +360,7 @@ class UserController extends Controller
         $result = $this->createDlmsAccount($found, $token);
         if ($result == 201) {
           $this->updateSubById($id);
-          $message = 'Your account has been successfully verified';
+          $noti = 'Your account has been successfully verified';
           if ($language == "French") {
             $message = (new \Swift_Message('Vous avez été enregistré avec succès dans le cloud Sinapse'))
               ->setFrom('DLMS_msg@sinapseprint.com')
@@ -439,7 +439,7 @@ class UserController extends Controller
         }
       }
     }
-    return $this->render('registration/verify.html.twig', ['message' => $message]);
+    return $this->render('registration/verify.html.twig', ['noti' => $noti]);
   }
 
   public function registrationSuccess(\Swift_Mailer $mailer, $email, $fullname, $id, $emailLanguage)
